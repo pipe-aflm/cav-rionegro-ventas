@@ -1,0 +1,1263 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CAV Rionegro - Ventas Pro</title>
+
+    <!-- =========================================================
+         PASO 1: LIBRERÍAS OFICIALES DE FIREBASE (SDK v8)
+         Explicación: Estos dos scripts descargan las herramientas de
+         Google para conectar tu HTML con Realtime Database.
+         ========================================================= -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+    <style>
+        /* =========================================================
+           PASO 2: DISEÑO VISUAL, COLORES Y ANIMACIONES (CSS)
+           Explicación: Define la apariencia de tarjetas, botones y
+           efectos de transición suave entre pantallas.
+           ========================================================= */
+        :root {
+            --primary: #d32f2f;       /* Color rojo principal para CAV Rionegro */
+            --primary-dark: #9a0007;  /* Rojo oscuro para el encabezado */
+            --vivo-blue: #415fff;     /* Azul corporativo para dar prioridad a Vivo */
+            --bg: #f4f6f9;            /* Fondo gris claro de la aplicación */
+            --text: #2c3e50;          /* Color de texto principal */
+            --danger: #e74c3c;        /* Color rojo para alertas de borrado */
+        }
+
+        * { box-sizing: border-box; font-family: 'Segoe UI', Roboto, sans-serif; -webkit-tap-highlight-color: transparent; }
+        body { background-color: var(--bg); margin: 0; color: var(--text); overflow-x: hidden; }
+
+        /* Animación de entrada para las pantallas y tarjetas */
+        @keyframes entradaSuave {
+            from { opacity: 0; transform: translateY(15px) scale(0.98); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        /* Animación 3D para el cambio de frases bíblicas/personales */
+        @keyframes transicionFrase {
+            0% { opacity: 0; transform: perspective(400px) rotateX(-25deg) translateY(-8px); }
+            100% { opacity: 1; transform: perspective(400px) rotateX(0deg) translateY(0); }
+        }
+        /* Efecto de resplandor continuo en la tarjeta de Vivo */
+        @keyframes pulsoVivo {
+            0% { box-shadow: 0 0 0 0 rgba(65, 95, 255, 0.35); }
+            70% { box-shadow: 0 0 0 8px rgba(65, 95, 255, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(65, 95, 255, 0); }
+        }
+
+        .animar { animation: entradaSuave 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        .animar-frase { animation: transicionFrase 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+
+        /* Notificación flotante en la parte superior */
+        .toast-top {
+            position: fixed; top: 15px; left: 50%; transform: translateX(-50%);
+            background: #1e272e; color: #fff; padding: 12px 18px; border-radius: 12px;
+            font-size: 13px; font-weight: bold; z-index: 9999; display: none;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.35); width: 92%; max-width: 380px;
+            text-align: center; border-left: 5px solid var(--vivo-blue);
+        }
+
+        /* Estilos de la pantalla de Iniciar Sesión y Solicitar Acceso */
+        #auth-screen {
+            min-height: 100vh; display: flex; align-items: center; justify-content: center;
+            background: linear-gradient(135deg, #1e272e 0%, #9a0007 100%); padding: 20px;
+        }
+        .auth-card {
+            background: #fff; width: 100%; max-width: 380px; border-radius: 20px;
+            padding: 26px 22px; box-shadow: 0 15px 35px rgba(0,0,0,0.35); text-align: center;
+        }
+        .auth-logo {
+            width: 62px; height: 62px; background: var(--primary); color: #fff;
+            border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+            font-size: 24px; font-weight: 900; margin-bottom: 10px;
+        }
+        .auth-title { margin: 0 0 4px 0; font-size: 22px; color: #1e272e; }
+        .auth-sub { margin: 0 0 18px 0; font-size: 13px; color: #7f8c8d; }
+        
+        .input-group { margin-bottom: 14px; text-align: left; }
+        .input-group label { display: block; font-size: 12px; font-weight: bold; margin-bottom: 5px; color: #444; }
+        .input-group input {
+            width: 100%; padding: 12px; border: 1.5px solid #dcdde1; border-radius: 10px;
+            font-size: 14px; outline: none; transition: 0.25s;
+        }
+        .input-group input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(211,47,47,0.15); }
+
+        .btn-main {
+            width: 100%; padding: 13px; background: var(--primary); color: #fff;
+            border: none; border-radius: 10px; font-size: 15px; font-weight: bold;
+            cursor: pointer; transition: transform 0.15s; margin-top: 4px;
+        }
+        .btn-main:active { transform: scale(0.97); }
+
+        .btn-switch-auth {
+            width: 100%; margin-top: 14px; padding: 10px; background: #f8f9fa;
+            border: 1px dashed #ccc; border-radius: 10px; font-size: 13px; color: #444; cursor: pointer;
+        }
+        .btn-switch-auth b { color: var(--primary); text-decoration: underline; }
+
+        /* Cabecera e Indicador de Estado de Nube */
+        #app-screen { display: none; padding-bottom: 40px; }
+        .header {
+            background: linear-gradient(90deg, var(--primary-dark), var(--primary));
+            color: #fff; padding: 12px 15px; display: flex; justify-content: space-between;
+            align-items: center; user-select: none; box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+        }
+        .header-left { display: flex; flex-direction: column; cursor: pointer; }
+        .header-title { font-weight: 800; font-size: 16px; }
+        .cloud-badge { font-size: 10px; font-weight: bold; opacity: 0.95; margin-top: 2px; }
+        
+        .user-bar { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+        .btn-small {
+            background: rgba(255,255,255,0.22); color: #fff; border: none;
+            padding: 6px 10px; border-radius: 6px; font-size: 11px; font-weight: bold; cursor: pointer;
+        }
+
+        /* Banner de Frase Bíblica / Personal */
+        .quote-banner {
+            background: linear-gradient(135deg, #1e272e 0%, #2f3640 100%);
+            color: #fff; margin: 12px 15px 4px 15px; padding: 13px 15px;
+            border-radius: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+            border-left: 4px solid #f1c40f; max-width: 570px; margin-left: auto; margin-right: auto;
+        }
+        .quote-text {
+            font-size: 13px; font-style: italic; line-height: 1.4; margin: 0 0 10px 0;
+            color: #f5f6fa; min-height: 34px; display: flex; align-items: center;
+        }
+        .quote-controls {
+            display: flex; justify-content: space-between; align-items: center;
+            border-top: 1px solid rgba(255,255,255,0.1); padding-top: 8px;
+        }
+        .quote-tag { font-size: 10px; text-transform: uppercase; color: #f1c40f; font-weight: bold; letter-spacing: 0.5px; }
+        .quote-btns { display: flex; gap: 6px; }
+        .btn-quote {
+            background: rgba(255,255,255,0.12); color: #fff; border: none;
+            padding: 4px 9px; border-radius: 6px; font-size: 11px; cursor: pointer; font-weight: bold;
+        }
+
+        /* Pestañas y Cuadrícula de Marcas */
+        .tabs { display: flex; background: #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.05); margin-top: 8px; }
+        .tab {
+            flex: 1; text-align: center; padding: 13px; font-weight: bold;
+            color: #7f8c8d; cursor: pointer; border-bottom: 3px solid transparent; transition: 0.2s;
+        }
+        .tab.active { color: var(--primary); border-bottom-color: var(--primary); background: #fff5f5; }
+
+        .content { padding: 15px; display: none; max-width: 600px; margin: 0 auto; }
+        .content.active { display: block; }
+
+        .top-controls {
+            display: flex; gap: 10px; align-items: center; margin-bottom: 15px;
+            background: #fff; padding: 10px; border-radius: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+        }
+        .date-input { flex: 1; padding: 9px; border-radius: 8px; border: 1px solid #ccc; font-weight: bold; }
+        .daily-counter {
+            background: #1e272e; color: #fff; padding: 9px 14px; border-radius: 8px;
+            font-size: 13px; font-weight: bold;
+        }
+
+        .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 13px; }
+        .card {
+            background: #fff; border-radius: 14px; padding: 15px 10px;
+            text-align: center; box-shadow: 0 3px 8px rgba(0,0,0,0.06);
+            cursor: pointer; position: relative; border: 2px solid transparent; transition: transform 0.15s;
+        }
+        .card:active { transform: scale(0.96); }
+        .card.vivo-card {
+            border-color: var(--vivo-blue);
+            background: linear-gradient(180deg, #ffffff 0%, #eef2ff 100%);
+            animation: pulsoVivo 2.5s infinite;
+        }
+        .vivo-star {
+            position: absolute; top: 7px; right: 7px; background: var(--vivo-blue);
+            color: #fff; font-size: 9px; font-weight: bold; padding: 2px 6px; border-radius: 8px;
+        }
+        .brand-logo { height: 42px; max-width: 105px; object-fit: contain; margin-bottom: 4px; }
+        .fallback-logo {
+            width: 42px; height: 42px; border-radius: 50%; background: #eaeff5;
+            color: #2c3e50; display: none; align-items: center; justify-content: center;
+            font-weight: 900; font-size: 18px; margin: 0 auto 5px auto;
+        }
+        .vivo-card .fallback-logo { background: var(--vivo-blue); color: #fff; }
+        .brand-name { font-weight: 800; font-size: 15px; }
+        .total-badge {
+            background: #eef2f7; color: #2c3e50; border-radius: 15px;
+            padding: 4px 10px; font-size: 12px; font-weight: bold; margin-top: 6px; display: inline-block;
+        }
+        .vivo-card .total-badge { background: var(--vivo-blue); color: #fff; }
+
+        /* Market Share y Top Referencias */
+        .subtabs { display: flex; gap: 6px; margin-bottom: 12px; }
+        .subtab {
+            flex: 1; padding: 9px; text-align: center; background: #e2e8f0;
+            border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: bold; transition: 0.2s;
+        }
+        .subtab.active { background: var(--primary); color: #fff; }
+
+        .hero-ref-card {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: #fff; padding: 16px; border-radius: 14px; margin-bottom: 14px;
+            display: flex; align-items: center; justify-content: space-between;
+            box-shadow: 0 4px 12px rgba(30,60,114,0.25);
+        }
+        .hero-ref-info h4 { margin: 0 0 5px 0; font-size: 10px; text-transform: uppercase; opacity: 0.9; }
+        .hero-ref-info h2 { margin: 0; font-size: 18px; font-weight: 800; }
+        .hero-ref-badge {
+            background: rgba(255,255,255,0.2); padding: 8px 12px; border-radius: 10px;
+            text-align: center; font-weight: bold; font-size: 13px; white-space: nowrap;
+        }
+
+        .share-card {
+            background: #fff; padding: 12px 14px; border-radius: 12px; margin-bottom: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05); display: flex; align-items: center; justify-content: space-between;
+        }
+        .share-bar-container { flex: 1; height: 10px; background: #edf2f7; border-radius: 5px; margin: 0 10px; overflow: hidden; }
+        .share-bar { height: 100%; background: var(--primary); border-radius: 5px; transition: width 0.4s ease; }
+        .share-bar.vivo-bar { background: var(--vivo-blue); }
+
+        .btn-whatsapp {
+            width: 100%; background: #25D366; color: #fff; font-weight: bold;
+            padding: 13px; border: none; border-radius: 12px; font-size: 14px; cursor: pointer; margin-top: 10px;
+        }
+
+        /* Modales */
+        .modal {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.65); z-index: 2000; justify-content: center; align-items: center; padding: 15px;
+        }
+        .modal-cnt {
+            background: #fff; width: 100%; max-width: 400px; padding: 20px;
+            border-radius: 16px; max-height: 88vh; display: flex; flex-direction: column;
+        }
+        .modal-body { flex: 1; overflow-y: auto; margin: 10px 0; }
+        .ref-item {
+            display: flex; justify-content: space-between; align-items: center;
+            background: #f8f9fa; padding: 9px 10px; margin-bottom: 7px; border-radius: 10px; border: 1px solid #e9ecef;
+        }
+        .ref-actions { display: flex; gap: 4px; align-items: center; }
+        .btn-qty { background: #e2e8f0; color: #2c3e50; font-weight: bold; width: 28px; height: 28px; border-radius: 6px; border: none; cursor: pointer; }
+        .btn-edit { background: #fff3cd; color: #856404; border: none; padding: 5px 7px; border-radius: 6px; cursor: pointer; }
+        .btn-del { background: #f8d7da; color: #721c24; border: none; padding: 5px 7px; border-radius: 6px; cursor: pointer; }
+
+        .admin-sec-box {
+            background: #f1f5f9; padding: 10px; border-radius: 10px; margin-bottom: 10px; border: 1px solid #cbd5e1;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="toast" class="toast-top">Mensaje</div>
+
+    <!-- =========================================================
+         PASO 3: ESTRUCTURA DE VISTAS Y MODALES (HTML)
+         ========================================================= -->
+    <!-- PANTALLA DE LOGIN Y REGISTRO -->
+    <div id="auth-screen">
+        <div id="login-box" class="auth-card animar">
+            <div class="auth-logo">CAV</div>
+            <h2 class="auth-title">CAV Rionegro</h2>
+            <p class="auth-sub">Ingresa con tu cuenta autorizada</p>
+            
+            <div class="input-group">
+                <label>Correo electrónico</label>
+                <input type="email" id="login-email" placeholder="Escribe tu correo aquí">
+            </div>
+            <div class="input-group">
+                <label>Contraseña</label>
+                <input type="password" id="login-pass" placeholder="Escribe tu clave">
+            </div>
+            
+            <button type="button" class="btn-main" onclick="iniciarSesion()">Entrar a la App</button>
+
+            <button type="button" class="btn-switch-auth" onclick="cambiarVistaAuth('register')">
+                ¿Eres promotor nuevo? <b>Solicitar acceso aquí</b>
+            </button>
+        </div>
+
+        <div id="register-box" class="auth-card animar" style="display:none;">
+            <div class="auth-logo" style="background: var(--vivo-blue);">+</div>
+            <h2 class="auth-title">Solicitar Acceso</h2>
+            <p class="auth-sub">El Administrador confirmará tu entrada al CAV</p>
+            
+            <div class="input-group">
+                <label>Nombre y Marca</label>
+                <input type="text" id="reg-name" placeholder="Ej: Mateo - Oppo">
+            </div>
+            <div class="input-group">
+                <label>Correo electrónico</label>
+                <input type="email" id="reg-email" placeholder="correo@ejemplo.com">
+            </div>
+            <div class="input-group">
+                <label>Crear Contraseña</label>
+                <input type="password" id="reg-pass" placeholder="Mínimo 4 caracteres">
+            </div>
+            
+            <button type="button" class="btn-main" style="background: var(--vivo-blue);" onclick="registrarSolicitud()">
+                Enviar Solicitud de Registro
+            </button>
+
+            <button type="button" class="btn-switch-auth" onclick="cambiarVistaAuth('login')">
+                ¿Ya tienes cuenta? <b>Volver a Iniciar Sesión</b>
+            </button>
+        </div>
+    </div>
+
+    <!-- PANTALLA PRINCIPAL DE LA APP -->
+    <div id="app-screen">
+        <div class="header">
+            <!-- Tocar 5 veces seguidas este bloque abre el PIN de soporte (2004) -->
+            <div class="header-left" onclick="toqueSecretoAdmin()">
+                <span class="header-title">📍 CAV Rionegro</span>
+                <span id="cloud-status" class="cloud-badge">🟠 Verificando nube...</span>
+            </div>
+            <div class="user-bar">
+                <span id="user-display">Admin</span>
+                <button type="button" id="btn-admin-panel" class="btn-small" style="background:#f39c12;" onclick="abrirModalAdmin()">🛡️ Soporte</button>
+                <button type="button" class="btn-small" onclick="cerrarSesion()">Salir</button>
+            </div>
+        </div>
+
+        <!-- Banner Motivacional -->
+        <div class="quote-banner animar">
+            <div id="quote-display" class="quote-text animar-frase">
+                "Todo lo puedo en Cristo que me fortalece." — Filipenses 4:13
+            </div>
+            <div class="quote-controls">
+                <span id="quote-label" class="quote-tag">✨ Versículo del día</span>
+                <div class="quote-btns">
+                    <button type="button" class="btn-quote" onclick="rotarFraseBiblica()">🔄 Otra frase</button>
+                    <button type="button" class="btn-quote" style="background:var(--vivo-blue);" onclick="abrirModalMiFrase()">✏️ Mi frase</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('reg-view', this)">📝 Registro</div>
+            <div class="tab" onclick="switchTab('share-view', this)">📊 Market Share & Top</div>
+        </div>
+
+        <div id="reg-view" class="content active animar">
+            <div class="top-controls">
+                <input type="date" id="datePicker" class="date-input" onchange="cambiarFecha()">
+                <div class="daily-counter" id="global-day-badge">Día: 0 uds</div>
+            </div>
+            <div id="brands-grid" class="grid"></div>
+        </div>
+
+        <div id="share-view" class="content animar">
+            <div class="subtabs">
+                <div id="sub-diario" class="subtab active" onclick="switchShare('diario')">Diario</div>
+                <div id="sub-semanal" class="subtab" onclick="switchShare('semanal')">Semanal</div>
+                <div id="sub-mensual" class="subtab" onclick="switchShare('mensual')">Mensual</div>
+            </div>
+
+            <div id="top-ref-hero"></div>
+
+            <div class="subtabs">
+                <div id="modo-marcas" class="subtab active" style="background:#1e272e; color:#fff;" onclick="cambiarModoShare('marcas')">🏢 Por Marcas</div>
+                <div id="modo-refs" class="subtab" onclick="cambiarModoShare('refs')">📱 Top Referencias Exactas</div>
+            </div>
+
+            <div id="share-container"></div>
+
+            <button type="button" class="btn-whatsapp" onclick="copiarReporteWhatsApp()">
+                📲 Copiar Resumen para WhatsApp
+            </button>
+        </div>
+    </div>
+
+    <!-- MODAL DE FRASE PERSONAL -->
+    <div id="fraseModal" class="modal">
+        <div class="modal-cnt animar" style="max-width:350px;">
+            <h3 style="margin:0 0 6px 0;">✨ Tu Frase Personal</h3>
+            <p style="font-size:12px; color:#666; margin:0 0 10px 0;">Escribe un versículo o meta propia que te inspire seguridad al vender:</p>
+            <input type="text" id="customQuoteInput" placeholder="Escribe tu frase aquí..." style="width:100%; padding:11px; border-radius:8px; border:1px solid #ccc; margin-bottom:14px; font-size:13px;">
+            <div style="display:flex; gap:8px;">
+                <button type="button" onclick="cerrarModal('fraseModal')" style="flex:1; padding:10px; border-radius:8px; border:none; background:#e2e8f0; font-weight:bold;">Cancelar</button>
+                <button type="button" onclick="guardarMiFrase()" style="flex:1; padding:10px; border-radius:8px; border:none; background:var(--vivo-blue); color:#fff; font-weight:bold;">Guardar Frase</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DE REFERENCIAS POR MARCA -->
+    <div id="brandModal" class="modal">
+        <div class="modal-cnt animar">
+            <h3 id="modalTitle" style="margin:0 0 6px 0;">Marca</h3>
+            <p style="font-size:12px; color:#666; margin:0 0 10px 0;">Incluye capacidad para mayor precisión (Ej: V50 256GB)</p>
+            <div style="display:flex; gap:6px; margin-bottom:10px;">
+                <input type="text" id="refIn" placeholder="Nueva referencia..." style="flex:1; padding:10px; border-radius:8px; border:1px solid #ccc;">
+                <button type="button" onclick="addRef()" style="background:var(--primary); color:#fff; font-weight:bold; padding:0 16px; border-radius:8px; border:none;">+</button>
+            </div>
+            <div id="refList" class="modal-body"></div>
+            <button type="button" onclick="cerrarModal('brandModal')" class="btn-main" style="background:#7f8c8d;">Cerrar</button>
+        </div>
+    </div>
+
+    <!-- MODAL DE EDICIÓN DE NOMBRE DE REFERENCIA -->
+    <div id="editRefModal" class="modal">
+        <div class="modal-cnt animar" style="max-width:340px;">
+            <h3 style="margin:0 0 8px 0;">✏️ Modificar Referencia</h3>
+            <p style="font-size:12px; color:#666; margin:0 0 10px 0;">Corrige el nombre o capacidad sin perder las ventas:</p>
+            <input type="text" id="editRefInput" style="width:100%; padding:10px; border-radius:8px; border:1px solid #ccc; margin-bottom:14px; font-weight:bold;">
+            <div style="display:flex; gap:8px;">
+                <button type="button" onclick="cerrarModal('editRefModal')" style="flex:1; padding:10px; border-radius:8px; border:none; background:#e2e8f0; font-weight:bold;">Cancelar</button>
+                <button type="button" onclick="guardarEdicionRef()" style="flex:1; padding:10px; border-radius:8px; border:none; background:var(--vivo-blue); color:#fff; font-weight:bold;">Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DE DOBLE CONFIRMACIÓN DE BORRADO -->
+    <div id="confirmDeleteModal" class="modal">
+        <div class="modal-cnt animar" style="text-align:center; max-width:340px;">
+            <div id="del-icon" style="font-size:38px; margin-bottom:8px;">⚠️</div>
+            <h3 id="del-title" style="margin:0 0 8px 0; color:var(--danger);">Confirmación 1 de 2</h3>
+            <p id="del-msg" style="font-size:13px; color:#555; margin-bottom:16px;"></p>
+            <div style="display:flex; gap:8px;">
+                <button type="button" onclick="cerrarModal('confirmDeleteModal')" style="flex:1; padding:10px; border-radius:8px; border:none; background:#e2e8f0; font-weight:bold;">Cancelar</button>
+                <button type="button" id="btn-confirm-step" style="flex:1; padding:10px; border-radius:8px; border:none; background:var(--danger); color:#fff; font-weight:bold;">Continuar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DE PIN PRIVADO (SIN PISTAS EN PANTALLA) -->
+    <div id="pinModal" class="modal">
+        <div class="modal-cnt animar" style="text-align:center; max-width:320px;">
+            <h3 style="margin:0 0 6px 0;">🛡️ Acceso Soporte</h3>
+            <p style="font-size:12px; color:#666; margin:0 0 12px 0;">Ingresa tu PIN Maestro privado:</p>
+            <input type="password" id="pinInput" placeholder="••••" style="width:100%; padding:10px; text-align:center; font-size:18px; border-radius:8px; border:1px solid #ccc; margin-bottom:14px;">
+            <div style="display:flex; gap:8px;">
+                <button type="button" onclick="cerrarModal('pinModal')" style="flex:1; padding:10px; border-radius:8px; border:none; background:#e2e8f0; font-weight:bold;">Cancelar</button>
+                <button type="button" onclick="verificarPinSoporte()" style="flex:1; padding:10px; border-radius:8px; border:none; background:#1e272e; color:#fff; font-weight:bold;">Desbloquear</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DE SOPORTE Y CAMBIO DE CLAVES MAESTRAS -->
+    <div id="adminModal" class="modal">
+        <div class="modal-cnt animar">
+            <h3 style="margin:0 0 4px 0;">🛡️ Panel de Soporte y Seguridad</h3>
+            
+            <!-- Sub-panel para cambiar tu clave o PIN directamente desde la pantalla -->
+            <div class="admin-sec-box">
+                <div style="font-size:11px; font-weight:bold; margin-bottom:6px; color:#1e272e;">🔑 Actualizar mi Clave Maestra y PIN:</div>
+                <div style="display:flex; gap:6px; margin-bottom:6px;">
+                    <input type="text" id="newAdminPass" placeholder="Nueva Clave" style="flex:1; padding:7px; border-radius:6px; border:1px solid #ccc; font-size:12px;">
+                    <input type="text" id="newAdminPin" placeholder="Nuevo PIN" style="width:90px; padding:7px; border-radius:6px; border:1px solid #ccc; font-size:12px;">
+                </div>
+                <button type="button" onclick="guardarNuevasClavesAdmin()" style="width:100%; padding:7px; background:var(--vivo-blue); color:#fff; border:none; border-radius:6px; font-size:11px; font-weight:bold; cursor:pointer;">
+                    Guardar Nuevas Claves en la Nube
+                </button>
+            </div>
+
+            <p style="font-size:12px; color:#666; margin:4px 0;"><b>Promotores registrados:</b> (Aprueba o bloquea el acceso)</p>
+            <div id="usersList" class="modal-body"></div>
+            <button type="button" onclick="cerrarModal('adminModal')" class="btn-main" style="background:#1e272e;">Cerrar Panel</button>
+        </div>
+    </div>
+
+    <script>
+        /* =========================================================
+           PASO 4: CONFIGURACIÓN MAESTRA Y CONEXIÓN A FIREBASE
+           Explicación: Aquí se definen tus credenciales iniciales y
+           la conexión en vivo con tu base de datos cav-rio-ventas.
+           ========================================================= */
+        const ADMIN_EMAIL_DEFAULT = "adrianfelipelopez2016@gmail.com";
+        let ADMIN_PASS_ACTUAL     = "777361"; // Clave maestra inicial que elegiste
+        let PIN_SOPORTE_ACTUAL    = "2004";   // PIN secreto inicial que elegiste
+
+        // Módulo de memoria local segura para respaldo inmediato en Acode
+        const MemoriaLocal = {
+            obtener: function(k, def) {
+                try { let d = localStorage.getItem(k); return d ? JSON.parse(d) : def; } catch(e) { return def; }
+            },
+            guardar: function(k, val) {
+                try { localStorage.setItem(k, JSON.stringify(val)); } catch(e) {}
+            },
+            borrar: function(k) {
+                try { localStorage.removeItem(k); } catch(e) {}
+            }
+        };
+
+        // Variables de datos del sistema
+        let dbVentas = MemoriaLocal.obtener('cav_rio_ventas_bak', {});
+        let catalogo = MemoriaLocal.obtener('cav_rio_catalogo_bak', {});
+        let usuarios = MemoriaLocal.obtener('cav_rio_usuarios_bak', []);
+        let frasesPorUsuario = MemoriaLocal.obtener('cav_rio_frases_bak', {});
+        let configSeguridad = MemoriaLocal.obtener('cav_rio_seguridad_bak', {
+            pass: ADMIN_PASS_ACTUAL,
+            pin: PIN_SOPORTE_ACTUAL
+        });
+
+        ADMIN_PASS_ACTUAL  = configSeguridad.pass || "777361";
+        PIN_SOPORTE_ACTUAL = configSeguridad.pin  || "2004";
+
+        // Configuración oficial de tu proyecto Firebase (cav-rio-ventas)
+        const firebaseConfig = {
+            databaseURL: "https://cav-rio-ventas-default-rtdb.firebaseio.com",
+            projectId: "cav-rio-ventas"
+        };
+
+        let db = null;
+        let nubeConectada = false;
+
+        // Inicialización de Firebase Realtime Database
+        try {
+            if (typeof firebase !== "undefined") {
+                firebase.initializeApp(firebaseConfig);
+                db = firebase.database();
+
+                // Monitor en vivo del estado de conexión con el servidor de Google
+                db.ref('.info/connected').on('value', function(snap) {
+                    nubeConectada = (snap.val() === true);
+                    actualizarIndicadorNube();
+                });
+
+                // Escuchador en tiempo real de todos los datos del CAV Rionegro
+                db.ref('cav_rionegro_v3').on('value', function(snapshot) {
+                    let data = snapshot.val();
+                    if (data) {
+                        dbVentas = data.ventas || {};
+                        catalogo = data.catalogo || {};
+                        usuarios = data.usuarios || [];
+                        frasesPorUsuario = data.frases || {};
+                        if (data.seguridad) {
+                            configSeguridad = data.seguridad;
+                            ADMIN_PASS_ACTUAL = configSeguridad.pass;
+                            PIN_SOPORTE_ACTUAL = configSeguridad.pin;
+                        }
+                        guardarRespaldoLocal();
+                    } else {
+                        // Si la base de datos en Firebase está recién creada (vacía), sube la estructura inicial
+                        asegurarCuentaAdmin();
+                        sincronizarNube();
+                    }
+                    asegurarCuentaAdmin();
+                    actualizarVistasActivas();
+                });
+            }
+        } catch (err) {
+            console.log("Trabajando con memoria local de respaldo");
+        }
+
+        function actualizarIndicadorNube() {
+            let badge = document.getElementById('cloud-status');
+            if (!badge) return;
+            if (nubeConectada) {
+                badge.innerText = "🟢 Nube Firebase Sincronizada";
+                badge.style.color = "#a7f3d0";
+            } else {
+                badge.innerText = "🟠 Modo Local (Revisar Internet/Reglas)";
+                badge.style.color = "#fde68a";
+            }
+        }
+
+        function guardarRespaldoLocal() {
+            MemoriaLocal.guardar('cav_rio_ventas_bak', dbVentas);
+            MemoriaLocal.guardar('cav_rio_catalogo_bak', catalogo);
+            MemoriaLocal.guardar('cav_rio_usuarios_bak', usuarios);
+            MemoriaLocal.guardar('cav_rio_frases_bak', frasesPorUsuario);
+            MemoriaLocal.guardar('cav_rio_seguridad_bak', configSeguridad);
+        }
+
+        function sincronizarNube() {
+            guardarRespaldoLocal();
+            if (db) {
+                try {
+                    db.ref('cav_rionegro_v3').set({
+                        ventas: dbVentas,
+                        catalogo: catalogo,
+                        usuarios: usuarios,
+                        frases: frasesPorUsuario,
+                        seguridad: configSeguridad
+                    });
+                } catch (e) {}
+            }
+        }
+
+        function actualizarVistasActivas() {
+            if (document.getElementById('app-screen').style.display === 'block') {
+                renderizarGridMarcas();
+                if (document.getElementById('share-view').classList.contains('active')) renderShare();
+                if (document.getElementById('brandModal').style.display === 'flex') renderRefs();
+                if (document.getElementById('adminModal').style.display === 'flex') renderizarUsuarios();
+            }
+        }
+
+        /* =========================================================
+           PASO 5: CATÁLOGO DE FRASES BÍBLICAS Y MARCAS CON TUS LINKS
+           ========================================================= */
+        const FRASES_BIBLICAS = [
+            '"Todo lo puedo en Cristo que me fortalece." — Filipenses 4:13',
+            '"Mira que te mando que te esfuerces y seas valiente; no temas ni desmayes." — Josué 1:9',
+            '"Encomienda a Jehová tus obras, y tus pensamientos serán afirmados." — Proverbios 16:3',
+            '"Y todo lo que hagáis, hacedlo de corazón, como para el Señor." — Colosenses 3:23',
+            '"Jehová es mi pastor; nada me faltará." — Salmos 23:1',
+            '"El corazón del hombre piensa su camino; mas Jehová endereza sus pasos." — Proverbios 16:9',
+            '"No nos cansemos, pues, de hacer bien; porque a su tiempo segaremos." — Gálatas 6:9'
+        ];
+
+        // Tus 10 enlaces directos permanentes de Postimages con Vivo como líder
+        const brands = [
+            {n:"Vivo", f:"https://i.postimg.cc/C5gwy6KX/vivo.png", destaque: true},
+            {n:"Samsung", f:"https://i.postimg.cc/TP0wcxYM/Samsung.png"},
+            {n:"Xiaomi", f:"https://i.postimg.cc/VkGsSR7d/xiaomi.png"},
+            {n:"Honor", f:"https://i.postimg.cc/wjGHxBvs/honor.png"},
+            {n:"Oppo", f:"https://i.postimg.cc/50wMmqmB/Oppo.png"},
+            {n:"Motorola", f:"https://i.postimg.cc/rw3XXYn0/Motorola.png"},
+            {n:"iPhone", f:"https://i.postimg.cc/D02RPV03/Iphone.png"},
+            {n:"Realme", f:"https://i.postimg.cc/kMvm6s4Y/Realme.png"},
+            {n:"Tecno", f:"https://i.postimg.cc/1t1k4VZ8/Tecno.png"},
+            {n:"Nubia", f:"https://i.postimg.cc/8PXxM0V0/Nubia.png"}
+        ];
+
+        let usuarioActual = MemoriaLocal.obtener('cav_rionegro_sesion_v3', null);
+        let indiceFraseActual = 0;
+        let marcaActual = "";
+        let tipoShareActual = "diario";
+        let modoShareVista = "marcas";
+        let refEnEdicion = "";
+        let refParaBorrar = "";
+        let toquesAdmin = 0;
+        let timerToques = null;
+
+        /* =========================================================
+           PASO 6: GESTIÓN DE ACCESO, SOPORTE Y CAMBIO DE CLAVES
+           ========================================================= */
+        function asegurarCuentaAdmin() {
+            let adminIndex = usuarios.findIndex(function(u) {
+                return u.rol === "admin" || u.email.toLowerCase() === ADMIN_EMAIL_DEFAULT.toLowerCase();
+            });
+            if (adminIndex === -1) {
+                usuarios.push({
+                    nombre: "Adrián (Administrador)",
+                    email: ADMIN_EMAIL_DEFAULT.toLowerCase(),
+                    pass: ADMIN_PASS_ACTUAL,
+                    estado: "aprobado",
+                    rol: "admin"
+                });
+            } else {
+                usuarios[adminIndex].email = ADMIN_EMAIL_DEFAULT.toLowerCase();
+                usuarios[adminIndex].pass = ADMIN_PASS_ACTUAL;
+                usuarios[adminIndex].rol = "admin";
+                usuarios[adminIndex].estado = "aprobado";
+            }
+            guardarRespaldoLocal();
+        }
+
+        function guardarNuevasClavesAdmin() {
+            let nuevaPass = document.getElementById('newAdminPass').value.trim();
+            let nuevoPin  = document.getElementById('newAdminPin').value.trim();
+
+            if (!nuevaPass && !nuevoPin) {
+                mostrarToast("⚠️ Escribe una nueva clave o un nuevo PIN");
+                return;
+            }
+            if (nuevaPass) {
+                ADMIN_PASS_ACTUAL = nuevaPass;
+                configSeguridad.pass = nuevaPass;
+            }
+            if (nuevoPin) {
+                PIN_SOPORTE_ACTUAL = nuevoPin;
+                configSeguridad.pin = nuevoPin;
+            }
+
+            asegurarCuentaAdmin();
+            sincronizarNube();
+            document.getElementById('newAdminPass').value = "";
+            document.getElementById('newAdminPin').value = "";
+            mostrarToast("✅ Claves maestras actualizadas con éxito");
+        }
+
+        function cambiarVistaAuth(vista) {
+            const loginBox = document.getElementById('login-box');
+            const regBox = document.getElementById('register-box');
+            if (vista === 'register') {
+                loginBox.style.display = 'none';
+                regBox.style.display = 'block';
+            } else {
+                regBox.style.display = 'none';
+                loginBox.style.display = 'block';
+            }
+        }
+
+        function registrarSolicitud() {
+            asegurarCuentaAdmin();
+            let nombre = document.getElementById('reg-name').value.trim();
+            let email = document.getElementById('reg-email').value.trim().toLowerCase();
+            let pass = document.getElementById('reg-pass').value.trim();
+
+            if (!nombre || !email || pass.length < 4) {
+                mostrarToast("⚠️ Completa todos los campos (clave mín. 4 dígitos)");
+                return;
+            }
+            if (usuarios.find(function(u) { return u.email.toLowerCase() === email; })) {
+                mostrarToast("⚠️ Ese correo ya está registrado");
+                return;
+            }
+
+            usuarios.push({ nombre: nombre, email: email, pass: pass, estado: "pendiente", rol: "promotor" });
+            sincronizarNube();
+            
+            document.getElementById('reg-name').value = "";
+            document.getElementById('reg-email').value = "";
+            document.getElementById('reg-pass').value = "";
+
+            mostrarToast("✅ Solicitud enviada. El Administrador debe aprobar tu acceso.");
+            cambiarVistaAuth('login');
+        }
+
+        function iniciarSesion() {
+            asegurarCuentaAdmin();
+            let email = document.getElementById('login-email').value.trim().toLowerCase();
+            let pass = document.getElementById('login-pass').value.trim();
+
+            if (!email || !pass) {
+                mostrarToast("⚠️ Escribe tu correo y contraseña para ingresar");
+                return;
+            }
+
+            let user = usuarios.find(function(u) {
+                return u.email.toLowerCase() === email && u.pass === pass;
+            });
+
+            if (!user) {
+                mostrarToast("❌ Correo o contraseña incorrectos");
+                return;
+            }
+            if (user.estado === "pendiente") {
+                mostrarToast("⏳ Acceso PENDIENTE de aprobación por el Administrador.");
+                return;
+            }
+            if (user.estado === "bloqueado") {
+                mostrarToast("🚫 Tu acceso a esta aplicación ha sido restringido.");
+                return;
+            }
+
+            usuarioActual = user;
+            MemoriaLocal.guardar('cav_rionegro_sesion_v3', user);
+            entrarApp();
+        }
+
+        function cerrarSesion() {
+            MemoriaLocal.borrar('cav_rionegro_sesion_v3');
+            usuarioActual = null;
+            document.getElementById('app-screen').style.display = 'none';
+            document.getElementById('auth-screen').style.display = 'flex';
+        }
+
+        function toqueSecretoAdmin() {
+            toquesAdmin++;
+            clearTimeout(timerToques);
+            timerToques = setTimeout(function() { toquesAdmin = 0; }, 2000);
+            if (toquesAdmin >= 5) {
+                toquesAdmin = 0;
+                document.getElementById('pinInput').value = "";
+                document.getElementById('pinModal').style.display = 'flex';
+            }
+        }
+
+        function verificarPinSoporte() {
+            let pin = document.getElementById('pinInput').value.trim();
+            if (pin === PIN_SOPORTE_ACTUAL) {
+                cerrarModal('pinModal');
+                abrirModalAdmin();
+            } else {
+                mostrarToast("❌ PIN Maestro incorrecto");
+            }
+        }
+
+        function abrirModalAdmin() {
+            document.getElementById('newAdminPass').placeholder = "Clave actual: " + ADMIN_PASS_ACTUAL;
+            document.getElementById('newAdminPin').placeholder  = "PIN: " + PIN_SOPORTE_ACTUAL;
+            renderizarUsuarios();
+            document.getElementById('adminModal').style.display = 'flex';
+        }
+
+        function renderizarUsuarios() {
+            let cont = document.getElementById('usersList');
+            if (!cont) return;
+            cont.innerHTML = "";
+            let promotores = usuarios.filter(function(u) { return u.rol !== "admin"; });
+
+            if (promotores.length === 0) {
+                cont.innerHTML = '<p style="text-align:center; color:#888; font-size:13px;">No hay otros promotores registrados todavía.</p>';
+                return;
+            }
+
+            usuarios.forEach(function(u, idx) {
+                if (u.rol === "admin") return;
+                let bg = u.estado === "aprobado" ? "#2ecc71" : u.estado === "pendiente" ? "#f39c12" : "#e74c3c";
+                cont.innerHTML += `
+                    <div class="ref-item" style="flex-direction:column; align-items:flex-start; gap:8px;">
+                        <div style="width:100%; display:flex; justify-content:space-between;">
+                            <span><b>${u.nombre}</b><br><small style="color:#666;">${u.email}</small></span>
+                            <span style="background:${bg}; color:#fff; padding:3px 8px; border-radius:8px; font-size:10px; font-weight:bold; text-transform:uppercase; height:fit-content;">${u.estado}</span>
+                        </div>
+                        <div style="display:flex; gap:6px; width:100%;">
+                            <button type="button" onclick="cambiarEstadoUser(${idx}, 'aprobado')" style="flex:1; background:#d4edda; color:#155724; border:none; padding:7px; border-radius:6px; font-size:11px; font-weight:bold;">✓ Aprobar</button>
+                            <button type="button" onclick="cambiarEstadoUser(${idx}, 'bloqueado')" style="flex:1; background:#fff3cd; color:#856404; border:none; padding:7px; border-radius:6px; font-size:11px; font-weight:bold;">🚫 Bloquear</button>
+                            <button type="button" onclick="borrarUser(${idx})" style="background:#f8d7da; color:#721c24; border:none; padding:7px 12px; border-radius:6px; font-size:11px; font-weight:bold;">🗑️</button>
+                        </div>
+                    </div>`;
+            });
+        }
+
+        function cambiarEstadoUser(idx, nuevoEstado) {
+            usuarios[idx].estado = nuevoEstado;
+            sincronizarNube();
+            renderizarUsuarios();
+            mostrarToast("Estado actualizado a: " + nuevoEstado.toUpperCase());
+        }
+
+        function borrarUser(idx) {
+            usuarios.splice(idx, 1);
+            sincronizarNube();
+            renderizarUsuarios();
+            mostrarToast("🗑️ Cuenta eliminada");
+        }
+
+        /* =========================================================
+           PASO 7: FRASES, REGISTRO DE VENTAS Y MARKET SHARE
+           ========================================================= */
+        function cargarFraseInicialUsuario() {
+            if (!usuarioActual) return;
+            let fraseGuardada = frasesPorUsuario[usuarioActual.email];
+            if (fraseGuardada) {
+                aplicarAnimacionFrase(fraseGuardada, "🌟 Mi frase personal");
+            } else {
+                aplicarAnimacionFrase(FRASES_BIBLICAS[0], "✨ Versículo bíblico");
+            }
+        }
+
+        function rotarFraseBiblica() {
+            indiceFraseActual = (indiceFraseActual + 1) % FRASES_BIBLICAS.length;
+            aplicarAnimacionFrase(FRASES_BIBLICAS[indiceFraseActual], "✨ Versículo bíblico");
+        }
+
+        function abrirModalMiFrase() {
+            let actual = frasesPorUsuario[usuarioActual.email] || "";
+            document.getElementById('customQuoteInput').value = actual;
+            document.getElementById('fraseModal').style.display = 'flex';
+        }
+
+        function guardarMiFrase() {
+            let texto = document.getElementById('customQuoteInput').value.trim();
+            if (!texto) {
+                delete frasesPorUsuario[usuarioActual.email];
+                sincronizarNube();
+                cerrarModal('fraseModal');
+                rotarFraseBiblica();
+                mostrarToast("🔄 Restaurado a versículos bíblicos");
+                return;
+            }
+            let fraseConComillas = texto.startsWith('"') ? texto : '"' + texto + '"';
+            frasesPorUsuario[usuarioActual.email] = fraseConComillas;
+            sincronizarNube();
+
+            cerrarModal('fraseModal');
+            aplicarAnimacionFrase(fraseConComillas, "🌟 Mi frase personal");
+            mostrarToast("✅ Tu frase personal fue guardada");
+        }
+
+        function aplicarAnimacionFrase(texto, etiqueta) {
+            let elTexto = document.getElementById('quote-display');
+            let elTag = document.getElementById('quote-label');
+            if (!elTexto) return;
+            elTexto.classList.remove('animar-frase');
+            void elTexto.offsetWidth;
+            elTexto.innerText = texto;
+            elTag.innerText = etiqueta;
+            elTexto.classList.add('animar-frase');
+        }
+
+        function entrarApp() {
+            document.getElementById('auth-screen').style.display = 'none';
+            document.getElementById('app-screen').style.display = 'block';
+            document.getElementById('user-display').innerText = usuarioActual.nombre;
+            document.getElementById('btn-admin-panel').style.display = usuarioActual.rol === "admin" ? "inline-block" : "none";
+
+            let picker = document.getElementById('datePicker');
+            if (!picker.value) {
+                let hoy = new Date();
+                let yyyy = hoy.getFullYear();
+                let mm = String(hoy.getMonth() + 1).padStart(2, '0');
+                let dd = String(hoy.getDate()).padStart(2, '0');
+                picker.value = yyyy + "-" + mm + "-" + dd;
+            }
+            actualizarIndicadorNube();
+            cargarFraseInicialUsuario();
+            renderizarGridMarcas();
+        }
+
+        function getFechaActual() {
+            return document.getElementById('datePicker').value;
+        }
+
+        function cambiarFecha() {
+            renderizarGridMarcas();
+            if (document.getElementById('share-view').classList.contains('active')) renderShare();
+        }
+
+        function calcularTotalMarcaActual(marca) {
+            let f = getFechaActual();
+            if (!dbVentas[f] || !dbVentas[f][marca]) return 0;
+            return Object.values(dbVentas[f][marca]).reduce(function(a, b) { return a + b; }, 0);
+        }
+
+        function renderizarGridMarcas() {
+            const grid = document.getElementById('brands-grid');
+            if (!grid) return;
+            grid.innerHTML = "";
+            let totalDia = 0;
+
+            brands.forEach(function(b) {
+                if (!catalogo[b.n]) catalogo[b.n] = [];
+                let totalM = calcularTotalMarcaActual(b.n);
+                totalDia += totalM;
+
+                let clase = b.destaque ? "card vivo-card" : "card";
+                let badgeTop = b.destaque ? '<span class="vivo-star">★ LÍDER</span>' : "";
+
+                grid.innerHTML += `
+                    <div class="${clase}" onclick="openModal('${b.n}')">
+                        ${badgeTop}
+                        <img src="${b.f}" class="brand-logo" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                        <div class="fallback-logo">${b.n.charAt(0)}</div>
+                        <div class="brand-name">${b.n}</div>
+                        <div class="total-badge">Total: ${totalM}</div>
+                    </div>`;
+            });
+            let badgeGlobal = document.getElementById('global-day-badge');
+            if (badgeGlobal) badgeGlobal.innerText = "Día: " + totalDia + " uds";
+        }
+
+        function openModal(m) {
+            marcaActual = m;
+            document.getElementById('modalTitle').innerText = "Referencias de " + m;
+            document.getElementById('brandModal').style.display = 'flex';
+            renderRefs();
+        }
+
+        function cerrarModal(id) {
+            document.getElementById(id).style.display = 'none';
+        }
+
+        function addRef() {
+            let input = document.getElementById('refIn');
+            let r = input.value.trim().toUpperCase();
+            if (!r) return;
+            if (!catalogo[marcaActual]) catalogo[marcaActual] = [];
+            if (!catalogo[marcaActual].includes(r)) {
+                catalogo[marcaActual].push(r);
+                sincronizarNube();
+                input.value = "";
+                renderRefs();
+                mostrarToast("✅ " + r + " agregada");
+            } else {
+                mostrarToast("⚠️ Esa referencia ya existe");
+            }
+        }
+
+        function mod(r, c) {
+            let f = getFechaActual();
+            if (!dbVentas[f]) dbVentas[f] = {};
+            if (!dbVentas[f][marcaActual]) dbVentas[f][marcaActual] = {};
+
+            let act = dbVentas[f][marcaActual][r] || 0;
+            dbVentas[f][marcaActual][r] = Math.max(0, act + c);
+
+            sincronizarNube();
+            renderizarGridMarcas();
+            renderRefs();
+        }
+
+        function abrirModalEditarRef(r) {
+            refEnEdicion = r;
+            document.getElementById('editRefInput').value = r;
+            document.getElementById('editRefModal').style.display = 'flex';
+        }
+
+        function guardarEdicionRef() {
+            let nuevo = document.getElementById('editRefInput').value.trim().toUpperCase();
+            if (!nuevo || nuevo === refEnEdicion) {
+                cerrarModal('editRefModal');
+                return;
+            }
+            if (catalogo[marcaActual].includes(nuevo)) {
+                mostrarToast("⚠️ Ya existe otra referencia con ese nombre");
+                return;
+            }
+
+            let idx = catalogo[marcaActual].indexOf(refEnEdicion);
+            if (idx !== -1) catalogo[marcaActual][idx] = nuevo;
+
+            for (let fecha in dbVentas) {
+                if (dbVentas[fecha][marcaActual] && dbVentas[fecha][marcaActual][refEnEdicion] !== undefined) {
+                    dbVentas[fecha][marcaActual][nuevo] = dbVentas[fecha][marcaActual][refEnEdicion];
+                    delete dbVentas[fecha][marcaActual][refEnEdicion];
+                }
+            }
+            sincronizarNube();
+            cerrarModal('editRefModal');
+            renderRefs();
+            mostrarToast("✏️ Referencia actualizada");
+        }
+
+        function iniciarBorradoRef(r) {
+            refParaBorrar = r;
+            document.getElementById('del-icon').innerText = "⚠️";
+            document.getElementById('del-title').innerText = "Confirmación 1 de 2";
+            document.getElementById('del-msg').innerHTML = "¿Estás seguro de que quieres eliminar la referencia <b>" + r + "</b> de " + marcaActual + "?";
+            let btn = document.getElementById('btn-confirm-step');
+            btn.innerText = "Sí, continuar (1/2)";
+            btn.onclick = segundoPasoBorrado;
+            document.getElementById('confirmDeleteModal').style.display = 'flex';
+        }
+
+        function segundoPasoBorrado() {
+            document.getElementById('del-icon').innerText = "🚨";
+            document.getElementById('del-title').innerText = "¡Advertencia Final! (2 de 2)";
+            document.getElementById('del-msg').innerHTML = "Confirma por segunda vez: Se borrará <b>" + refParaBorrar + "</b> de la lista.";
+            let btn = document.getElementById('btn-confirm-step');
+            btn.innerText = "Borrar Definitivamente";
+            btn.onclick = ejecutarBorradoFinal;
+        }
+
+        function ejecutarBorradoFinal() {
+            let f = getFechaActual();
+            if (dbVentas[f] && dbVentas[f][marcaActual]) {
+                delete dbVentas[f][marcaActual][refParaBorrar];
+            }
+            catalogo[marcaActual] = catalogo[marcaActual].filter(function(i) { return i !== refParaBorrar; });
+            sincronizarNube();
+
+            cerrarModal('confirmDeleteModal');
+            renderizarGridMarcas();
+            renderRefs();
+            mostrarToast("🗑️ " + refParaBorrar + " eliminada");
+        }
+
+        function renderRefs() {
+            let f = getFechaActual();
+            let cont = document.getElementById('refList');
+            if (!cont) return;
+            cont.innerHTML = "";
+            if (!catalogo[marcaActual] || catalogo[marcaActual].length === 0) {
+                cont.innerHTML = '<p style="text-align:center; color:#999; font-size:13px;">Escribe arriba una referencia y pulsa +</p>';
+                return;
+            }
+            catalogo[marcaActual].forEach(function(r) {
+                let cant = (dbVentas[f] && dbVentas[f][marcaActual] && dbVentas[f][marcaActual][r]) ? dbVentas[f][marcaActual][r] : 0;
+                cont.innerHTML += `
+                    <div class="ref-item">
+                        <span style="font-size:13px; font-weight:600;">${r} <b style="color:var(--primary);">(${cant})</b></span>
+                        <div class="ref-actions">
+                            <button type="button" class="btn-qty" onclick="mod('${r}',-1)">-</button>
+                            <button type="button" class="btn-qty" style="background:var(--primary); color:#fff;" onclick="mod('${r}',1)">+</button>
+                            <button type="button" class="btn-edit" onclick="abrirModalEditarRef('${r}')">✏️</button>
+                            <button type="button" class="btn-del" onclick="iniciarBorradoRef('${r}')">🗑️</button>
+                        </div>
+                    </div>`;
+            });
+        }
+
+        function switchTab(id, el) {
+            document.querySelectorAll('.content').forEach(function(c) { c.classList.remove('active'); });
+            document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+            document.getElementById(id).classList.add('active');
+            el.classList.add('active');
+            if (id === 'share-view') renderShare();
+        }
+
+        function switchShare(tipo) {
+            tipoShareActual = tipo;
+            ['diario', 'semanal', 'mensual'].forEach(function(t) {
+                document.getElementById('sub-' + t).classList.toggle('active', t === tipo);
+            });
+            renderShare();
+        }
+
+        function cambiarModoShare(modo) {
+            modoShareVista = modo;
+            let btnM = document.getElementById('modo-marcas');
+            let btnR = document.getElementById('modo-refs');
+            if (modo === 'marcas') {
+                btnM.style.background = '#1e272e'; btnM.style.color = '#fff';
+                btnR.style.background = '#e2e8f0'; btnR.style.color = '#2c3e50';
+            } else {
+                btnR.style.background = '#1e272e'; btnR.style.color = '#fff';
+                btnM.style.background = '#e2e8f0'; btnM.style.color = '#2c3e50';
+            }
+            renderShare();
+        }
+
+        function obtenerDatosPeriodo() {
+            let totalesPorMarca = {};
+            let totalesPorRef = {};
+            let totalGlobal = 0;
+
+            let fechaHoyStr = getFechaActual();
+            let partes = fechaHoyStr.split('-');
+            let fechaSel = new Date(partes[0], partes[1] - 1, partes[2]);
+
+            let diaSemana = fechaSel.getDay();
+            let diffLunes = diaSemana === 0 ? -6 : 1 - diaSemana;
+            let fechaLunes = new Date(fechaSel);
+            fechaLunes.setDate(fechaSel.getDate() + diffLunes);
+            let fechaDomingo = new Date(fechaLunes);
+            fechaDomingo.setDate(fechaLunes.getDate() + 6);
+
+            brands.forEach(function(b) { totalesPorMarca[b.n] = 0; });
+
+            for (let fechaStr in dbVentas) {
+                let fp = fechaStr.split('-');
+                let fData = new Date(fp[0], fp[1] - 1, fp[2]);
+                let incluir = false;
+
+                if (tipoShareActual === 'diario' && fechaStr === fechaHoyStr) incluir = true;
+                else if (tipoShareActual === 'semanal' && fData >= fechaLunes && fData <= fechaDomingo) incluir = true;
+                else if (tipoShareActual === 'mensual' && fData.getMonth() === fechaSel.getMonth() && fData.getFullYear() === fechaSel.getFullYear()) incluir = true;
+
+                if (incluir) {
+                    for (let marca in dbVentas[fechaStr]) {
+                        for (let ref in dbVentas[fechaStr][marca]) {
+                            let cant = dbVentas[fechaStr][marca][ref] || 0;
+                            if (cant > 0 && totalesPorMarca[marca] !== undefined) {
+                                totalesPorMarca[marca] += cant;
+                                totalGlobal += cant;
+                                let claveRef = marca + " " + ref;
+                                totalesPorRef[claveRef] = (totalesPorRef[claveRef] || 0) + cant;
+                            }
+                        }
+                    }
+                }
+            }
+            return { totalesPorMarca: totalesPorMarca, totalesPorRef: totalesPorRef, totalGlobal: totalGlobal };
+        }
+
+        function renderShare() {
+            let container = document.getElementById('share-container');
+            let hero = document.getElementById('top-ref-hero');
+            if (!container || !hero) return;
+            let datos = obtenerDatosPeriodo();
+            let totalesPorMarca = datos.totalesPorMarca;
+            let totalesPorRef = datos.totalesPorRef;
+            let totalGlobal = datos.totalGlobal;
+
+            let sortedRefs = Object.entries(totalesPorRef).sort(function(a, b) { return b[1] - a[1]; });
+
+            if (sortedRefs.length > 0) {
+                let topNombre = sortedRefs[0][0];
+                let topCant = sortedRefs[0][1];
+                let topPct = ((topCant / totalGlobal) * 100).toFixed(1);
+                hero.innerHTML = `
+                    <div class="hero-ref-card animar">
+                        <div class="hero-ref-info">
+                            <h4>🏆 Referencia #1 Más Vendida (${tipoShareActual})</h4>
+                            <h2>${topNombre}</h2>
+                        </div>
+                        <div class="hero-ref-badge">${topCant} uds<br><small>${topPct}% del total</small></div>
+                    </div>`;
+            } else {
+                hero.innerHTML = `
+                    <div class="hero-ref-card" style="background:#7f8c8d;">
+                        <div class="hero-ref-info">
+                            <h4>Periodo ${tipoShareActual}</h4>
+                            <h2>Sin equipos registrados aún</h2>
+                        </div>
+                    </div>`;
+            }
+
+            let html = "";
+            if (modoShareVista === 'marcas') {
+                let sortedMarcas = Object.entries(totalesPorMarca).sort(function(a, b) { return b[1] - a[1]; });
+                sortedMarcas.forEach(function(item, idx) {
+                    let marca = item[0];
+                    let cant = item[1];
+                    let pct = totalGlobal > 0 ? ((cant / totalGlobal) * 100).toFixed(1) : 0;
+                    let med = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : '#' + (idx + 1);
+                    let esVivo = marca === "Vivo";
+                    html += `
+                        <div class="share-card" style="${esVivo ? 'border:1.5px solid var(--vivo-blue);' : ''}">
+                            <div style="width:100px; font-weight:bold; font-size:13px;">${med} ${marca}</div>
+                            <div class="share-bar-container">
+                                <div class="share-bar ${esVivo ? 'vivo-bar' : ''}" style="width:${pct}%;"></div>
+                            </div>
+                            <div style="width:75px; text-align:right; font-size:12px;"><b>${cant}</b> (${pct}%)</div>
+                        </div>`;
+                });
+            } else {
+                if (sortedRefs.length === 0) {
+                    html = '<p style="text-align:center; color:#777; font-size:13px;">Agrega ventas para ver el ranking de referencias.</p>';
+                } else {
+                    sortedRefs.forEach(function(item, idx) {
+                        let refNombre = item[0];
+                        let cant = item[1];
+                        let pct = ((cant / totalGlobal) * 100).toFixed(1);
+                        let med = idx === 0 ? '🏆' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : '#' + (idx + 1);
+                        let esVivo = refNombre.startsWith("Vivo");
+                        html += `
+                            <div class="share-card">
+                                <div style="width:140px; font-weight:bold; font-size:12px;">${med} ${refNombre}</div>
+                                <div class="share-bar-container">
+                                    <div class="share-bar ${esVivo ? 'vivo-bar' : ''}" style="width:${pct}%;"></div>
+                                </div>
+                                <div style="width:70px; text-align:right; font-size:12px;"><b>${cant}</b> (${pct}%)</div>
+                            </div>`;
+                    });
+                }
+            }
+            container.innerHTML = html;
+        }
+
+        function copiarReporteWhatsApp() {
+            let datos = obtenerDatosPeriodo();
+            let totalesPorMarca = datos.totalesPorMarca;
+            let totalesPorRef = datos.totalesPorRef;
+            let totalGlobal = datos.totalGlobal;
+
+            let texto = "📊 *REPORTE CAV RIONEGRO (" + tipoShareActual.toUpperCase() + ")*\n";
+            texto += "📅 Fecha: " + getFechaActual() + " | Total: *" + totalGlobal + " uds*\n\n";
+            texto += "🏢 *SHARE POR MARCAS:*\n";
+
+            Object.entries(totalesPorMarca).sort(function(a, b) { return b[1] - a[1]; }).forEach(function(item, i) {
+                let m = item[0];
+                let c = item[1];
+                if (c > 0 || m === "Vivo") {
+                    let p = totalGlobal > 0 ? ((c / totalGlobal) * 100).toFixed(1) : 0;
+                    let ic = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '▪️';
+                    texto += ic + " *" + m + ":* " + c + " uds (" + p + "%)\n";
+                }
+            });
+
+            let topR = Object.entries(totalesPorRef).sort(function(a, b) { return b[1] - a[1]; }).slice(0, 5);
+            if (topR.length > 0) {
+                texto += "\n🔥 *TOP REFERENCIAS:*\n";
+                topR.forEach(function(item, i) { texto += (i + 1) + ". " + item[0] + ": *" + item[1] + " uds*\n"; });
+            }
+
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(texto).then(function() { mostrarToast("✅ Copiado para WhatsApp"); });
+            } else {
+                mostrarToast("✅ Resumen listo");
+            }
+        }
+
+        function mostrarToast(msg) {
+            let t = document.getElementById('toast');
+            if (!t) return;
+            t.innerText = msg;
+            t.style.display = 'block';
+            setTimeout(function() { t.style.display = 'none'; }, 3200);
+        }
+
+        // Arrancar el sistema de inmediato
+        asegurarCuentaAdmin();
+        if (usuarioActual && usuarioActual.estado === 'aprobado') {
+            entrarApp();
+        }
+    </script>
+</body>
+</html>
